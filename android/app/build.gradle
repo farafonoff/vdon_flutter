@@ -31,7 +31,7 @@ android {
     compileSdkVersion flutterTargetSdkVersion.toInteger()
 
     defaultConfig {
-        applicationId "flutter.vdo.ninja"
+        applicationId "farafonoff.flutter.vdo.ninja"
         minSdkVersion 21
         targetSdkVersion flutterTargetSdkVersion.toInteger()
         versionCode flutterVersionCode.toInteger()
