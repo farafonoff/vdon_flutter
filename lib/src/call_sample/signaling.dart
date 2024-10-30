@@ -327,6 +327,7 @@ class Signaling {
 
       print(configuration);
 
+      await ensureLocalStream(deviceID, audioDeviceId);
       RTCPeerConnection pc = await createPeerConnection(configuration, _config);
       _sessionID[uuid] = new DateTime.now().toString();
       _sessions[uuid] = pc;
@@ -377,7 +378,19 @@ class Signaling {
       };
 
 		pc.onIceConnectionState = (state) {
-			print(state);
+      if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+        print('ICE Connection State: Failed');
+        _cleanSession(uuid);
+      }
+      if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
+        print('ICE Connection State: Disconnected');
+        _cleanSession(uuid);
+      }
+      if (state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
+        print('ICE Connection State: Closed');
+        _cleanSession(uuid);
+      }
+      print(state);
 		};
 		
 		Future.delayed(Duration.zero, () {
@@ -449,11 +462,43 @@ class Signaling {
     }
   }
 
-  Future<void> connect() async {
+  Future<void> ensureLocalStream(String deviceID, String audioDeviceId) async {
     if (_localStream == null || _localStream!.getTracks().isEmpty) {
       _localStream = await createStream(true, deviceID, audioDeviceId);
     }
+  }
 
+  Future<void> _cleanSession([String? uuid]) async {
+    if (uuid != null) {
+      var session = _sessions[uuid];
+      if (session != null) {
+        var request = Map();
+        request["UUID"] = uuid;
+        request["bye"] = true;
+        if (!UUID.isEmpty) {
+          request["from"] = UUID;
+        }
+        await _socket.send(_encoder.convert(request));
+        await session.close();
+        _sessions.remove(uuid);
+        _sessionID.remove(uuid);
+      }
+    }
+
+    print("Number of sessions: ${_sessions.length}");
+
+    if (_sessions.length == 0) {
+      if (_localStream != null) {
+        _localStream!.getTracks().forEach((track) {
+          track.stop();
+        });
+        await _localStream!.dispose();
+        _localStream = null;
+      }
+    }
+  }
+
+  Future<void> connect() async {
     active = true;
 
     if (UUID.isEmpty && (WSSADDRESS != "wss://wss.vdo.ninja:443")) {
@@ -564,7 +609,7 @@ class Signaling {
       bool userScreen, String deviceID, String audioDeviceId) async {
     String width = "1280";
     String height = "720";
-    String framerate = "30";
+    String framerate = "60";
 
     late MediaStream audioStream;
     late MediaStream stream;
